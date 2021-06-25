@@ -25,7 +25,7 @@ func main() {
 		data[i] = byte(i)
 	}
 
-	l, err := net.Listen("tcp4", ":22334")
+	l, err := net.Listen("tcp4", "127.0.0.1:22334")
 	if err != nil {
 		log.Fatal(err)
 	}
