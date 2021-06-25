@@ -11,8 +11,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ts, err := strconv.ParseInt(os.Args[2], 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
 	blocksize := int(bs)
-	const totalsize = 10 * 1024 * 1024 * 1024
+	totalsize := int(ts)
 	blocknum := totalsize / blocksize
 
 	data := make([]byte, blocksize)

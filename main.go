@@ -7,10 +7,13 @@ import (
 	"log"
 	"net"
 	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
 )
+
+var osExecutableExt = ""
 
 func main() {
 	bs := []int{
@@ -25,27 +28,42 @@ func main() {
 		256 * 1024,
 		512 * 1024,
 		1024 * 1024}
-	for _, s := range bs {
-		TestStdio(s)
+	ts := 10 * 1024 * 1024 * 1024
+	if runtime.GOOS == "windows" {
+		osExecutableExt = ".exe"
 	}
-	for _, s := range bs {
-		TestTCP(s)
-	}
-}
-
-func TestStdio(blocksize int) {
 	tmp, err := paths.MkTempDir("", "")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer tmp.RemoveAll()
-	srv := tmp.Join("stdio")
-	cmd := exec.Command("go", "build", "-o", srv.String(), "./stdio-server")
-	if err := cmd.Run(); err != nil {
-		log.Fatal("Run: ", err)
+
+	stdioSrv := tmp.Join("stdio" + osExecutableExt)
+	{
+		cmd := exec.Command("go", "build", "-o", stdioSrv.String(), "./stdio-server")
+		if err := cmd.Run(); err != nil {
+			log.Fatal("Run: ", err)
+		}
 	}
 
-	s := exec.Command(srv.String(), fmt.Sprintf("%d", blocksize))
+	tcpSrv := tmp.Join("tcp" + osExecutableExt)
+	{
+		cmd := exec.Command("go", "build", "-o", tcpSrv.String(), "./tcp-server")
+		if err := cmd.Run(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	for _, s := range bs {
+		TestStdio(stdioSrv, s, ts)
+	}
+	for _, s := range bs {
+		TestTCP(tcpSrv, s, ts)
+	}
+}
+
+func TestStdio(srv *paths.Path, blocksize int, totalsize int) {
+	s := exec.Command(srv.String(), fmt.Sprintf("%d", blocksize), fmt.Sprintf("%d", totalsize))
 	out, err := s.StdoutPipe()
 	if err != nil {
 		log.Fatal(err)
@@ -70,19 +88,9 @@ func TestStdio(blocksize int) {
 	}
 }
 
-func TestTCP(blocksize int) {
-	tmp, err := paths.MkTempDir("", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer tmp.RemoveAll()
-	srv := tmp.Join("tcp")
-	cmd := exec.Command("go", "build", "-o", srv.String(), "./tcp-server")
-	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
-	}
+func TestTCP(srv *paths.Path, blocksize int, totalsize int) {
 
-	s := exec.Command(srv.String(), fmt.Sprintf("%d", blocksize))
+	s := exec.Command(srv.String(), fmt.Sprintf("%d", blocksize), fmt.Sprintf("%d", totalsize))
 	go s.Run()
 
 	time.Sleep(500 * time.Millisecond)
